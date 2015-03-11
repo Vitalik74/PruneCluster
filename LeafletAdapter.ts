@@ -42,7 +42,7 @@ module PruneCluster {
 
 var PruneClusterForLeaflet = ((<any>L).Layer ? (<any>L).Layer : L.Class).extend({
 
-	initialize: function(size: number = 120, clusterMargin: number = 20) {
+	initialize: function(size: number = 120, clusterMargin: number = 20, options: any = {}) {
 		this.Cluster = new PruneCluster.PruneCluster();
 		this.Cluster.Size = size;
 		this.clusterMargin = Math.min(clusterMargin, size / 4);
@@ -64,6 +64,9 @@ var PruneClusterForLeaflet = ((<any>L).Layer ? (<any>L).Layer : L.Class).extend(
 
 		this._removeTimeoutId = 0;
 		this._markersRemoveListTimeout = [];
+        this.options = options;
+        this._clustersOnMap = [];// used when `disableClusteringAtZoom` options is set. In this array puts clusters icons which should be hide
+        this._markersOnMap = [];// used when `disableClusteringAtZoom` options is set. In this array puts markers icons which should be hide
 	},
 
 	RegisterMarker: function(marker: PruneCluster.Marker) {
@@ -213,6 +216,51 @@ var PruneClusterForLeaflet = ((<any>L).Layer ? (<any>L).Layer : L.Class).extend(
 		this._zoomInProgress = false;
 		this.ProcessView();
 	},
+
+    ProcessViewMarkers: function () {
+        // Don't do anything during the map manipulation
+        if (!this._map || this._zoomInProgress || this._moveInProgress) {
+            return;
+        }
+
+        var map = this._map,
+            bounds = map.getBounds(),
+            zoom = map.getZoom(),
+            marginRatio = this.clusterMargin / this.Cluster.Size,
+            resetIcons = this._resetIcons;
+
+        var southWest = bounds.getSouthWest(),
+            northEast = bounds.getNorthEast();
+
+        // First step : Compute the clusters
+        var clusters: PruneCluster.Cluster[] = this.Cluster.ProcessViewMarkers({
+            minLat: southWest.lat,
+            minLng: southWest.lng,
+            maxLat: northEast.lat,
+            maxLng: northEast.lng
+        });
+
+        var objectsOnMap: PruneCluster.Cluster[] = this._objectsOnMap,
+            newObjectsOnMap: PruneCluster.Cluster[] = [],
+            markersOnMap: PruneCluster.LeafletMarker[] = new Array(objectsOnMap.length);
+
+        // Second step : By default, all the leaflet markers should be removed
+        for (var i = 0, l = objectsOnMap.length; i < l; ++i) {
+            var marker = (<PruneCluster.ILeafletAdapterData>objectsOnMap[i].data)._leafletMarker;
+            markersOnMap[i] = marker;
+            marker._removeFromMap = true;
+        }
+
+        var clusterCreationList: PruneCluster.Cluster[] = [];
+
+        var opacityUpdateList = [];
+
+        // Third step : anti collapsing system
+        // => merge collapsing cluster using a sweep and prune algorithm
+        var workingList: PruneCluster.Cluster[] = [];
+
+
+    },
 
 	ProcessView: function () {
 		// Don't do anything during the map manipulation 

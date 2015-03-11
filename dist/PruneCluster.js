@@ -227,6 +227,29 @@ var PruneCluster;
                 cluster.ComputeBounds(this);
             }
         };
+        PruneCluster.prototype.ProcessViewMarkers = function (bounds) {
+            var heightBuffer = Math.abs(bounds.maxLat - bounds.minLat) * this.ViewPadding, widthBuffer = Math.abs(bounds.maxLng - bounds.minLng) * this.ViewPadding;
+            var extendedBounds = {
+                minLat: bounds.minLat - heightBuffer - heightBuffer,
+                maxLat: bounds.maxLat + heightBuffer + heightBuffer,
+                minLng: bounds.minLng - widthBuffer - widthBuffer,
+                maxLng: bounds.maxLng + widthBuffer + widthBuffer
+            };
+            this._sortMarkers();
+            this._resetClusterViews();
+            var firstIndex = this._indexLowerBoundLng(extendedBounds.minLng);
+            var markers = this._markers, allMarkers = [];
+            for (var i = firstIndex, l = markers.length; i < l; ++i) {
+                var marker = markers[i], markerPosition = marker.position;
+                if (markerPosition.lng > extendedBounds.maxLng) {
+                    break;
+                }
+                if (markerPosition.lat > extendedBounds.minLat && markerPosition.lat < extendedBounds.maxLat && !marker.filtered) {
+                    allMarkers.push(marker);
+                }
+            }
+            return allMarkers;
+        };
         PruneCluster.prototype.ProcessView = function (bounds) {
             var heightBuffer = Math.abs(bounds.maxLat - bounds.minLat) * this.ViewPadding, widthBuffer = Math.abs(bounds.maxLng - bounds.minLng) * this.ViewPadding;
             var extendedBounds = {
@@ -356,10 +379,11 @@ var PruneCluster;
 (function (PruneCluster) {
 })(PruneCluster || (PruneCluster = {}));
 var PruneClusterForLeaflet = (L.Layer ? L.Layer : L.Class).extend({
-    initialize: function (size, clusterMargin) {
+    initialize: function (size, clusterMargin, options) {
         var _this = this;
         if (size === void 0) { size = 120; }
         if (clusterMargin === void 0) { clusterMargin = 20; }
+        if (options === void 0) { options = {}; }
         this.Cluster = new PruneCluster.PruneCluster();
         this.Cluster.Size = size;
         this.clusterMargin = Math.min(clusterMargin, size / 4);
@@ -371,6 +395,9 @@ var PruneClusterForLeaflet = (L.Layer ? L.Layer : L.Class).extend({
         this._resetIcons = false;
         this._removeTimeoutId = 0;
         this._markersRemoveListTimeout = [];
+        this.options = options;
+        this._clustersOnMap = [];
+        this._markersOnMap = [];
     },
     RegisterMarker: function (marker) {
         this.Cluster.RegisterMarker(marker);
@@ -489,6 +516,28 @@ var PruneClusterForLeaflet = (L.Layer ? L.Layer : L.Class).extend({
     _zoomEnd: function () {
         this._zoomInProgress = false;
         this.ProcessView();
+    },
+    ProcessViewMarkers: function () {
+        if (!this._map || this._zoomInProgress || this._moveInProgress) {
+            return;
+        }
+        var map = this._map, bounds = map.getBounds(), zoom = map.getZoom(), marginRatio = this.clusterMargin / this.Cluster.Size, resetIcons = this._resetIcons;
+        var southWest = bounds.getSouthWest(), northEast = bounds.getNorthEast();
+        var clusters = this.Cluster.ProcessViewMarkers({
+            minLat: southWest.lat,
+            minLng: southWest.lng,
+            maxLat: northEast.lat,
+            maxLng: northEast.lng
+        });
+        var objectsOnMap = this._objectsOnMap, newObjectsOnMap = [], markersOnMap = new Array(objectsOnMap.length);
+        for (var i = 0, l = objectsOnMap.length; i < l; ++i) {
+            var marker = objectsOnMap[i].data._leafletMarker;
+            markersOnMap[i] = marker;
+            marker._removeFromMap = true;
+        }
+        var clusterCreationList = [];
+        var opacityUpdateList = [];
+        var workingList = [];
     },
     ProcessView: function () {
         var _this = this;

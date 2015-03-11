@@ -396,7 +396,63 @@ module PruneCluster {
 			}
 		}
 
-		public ProcessView(bounds: Bounds): Cluster[] {
+        public ProcessViewMarkers(bounds: Bounds): Cluster[] {
+            // Compute the extended bounds of the view
+            var heightBuffer = Math.abs(bounds.maxLat - bounds.minLat) * this.ViewPadding,
+                widthBuffer = Math.abs(bounds.maxLng - bounds.minLng) * this.ViewPadding;
+
+            var extendedBounds: Bounds = {
+                minLat: bounds.minLat - heightBuffer - heightBuffer,
+                maxLat: bounds.maxLat + heightBuffer + heightBuffer,
+                minLng: bounds.minLng - widthBuffer - widthBuffer,
+                maxLng: bounds.maxLng + widthBuffer + widthBuffer
+            };
+
+            // We keep the list of all markers sorted
+            // It's faster to keep the list sorted so we can use
+            // a insertion sort algorithm which is faster for sorted lists
+            this._sortMarkers();
+
+            // Reset the cluster for the new view
+            this._resetClusterViews();
+
+            // Binary search for the first interesting marker
+            var firstIndex = this._indexLowerBoundLng(extendedBounds.minLng);
+
+            // Just some shortcuts
+            var markers = this._markers,
+                allMarkers = [];
+                //clusters = this._clusters;
+
+
+            //var workingClusterList = clusters.slice(0);
+
+            // For every markers in the list
+            for (var i = firstIndex, l = markers.length; i < l; ++i) {
+
+                var marker = markers[i],
+                    markerPosition = marker.position;
+
+                // If the marker longitute is higher than the view longitude,
+                // we can stop to iterate
+                if (markerPosition.lng > extendedBounds.maxLng) {
+                    break;
+                }
+
+
+                // If the marker is inside the view and is not filtered
+                if (markerPosition.lat > extendedBounds.minLat &&
+                    markerPosition.lat < extendedBounds.maxLat &&
+                    !marker.filtered) {
+
+                    allMarkers.push(marker);
+                }
+            }
+
+            return allMarkers;
+        }
+
+        public ProcessView(bounds: Bounds): Cluster[] {
 
 			// Compute the extended bounds of the view
 			var heightBuffer = Math.abs(bounds.maxLat - bounds.minLat) * this.ViewPadding,
