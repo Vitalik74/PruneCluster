@@ -233,7 +233,7 @@ var PruneClusterForLeaflet = ((<any>L).Layer ? (<any>L).Layer : L.Class).extend(
             northEast = bounds.getNorthEast();
 
         // First step : Compute the clusters
-        var clusters: PruneCluster.Cluster[] = this.Cluster.ProcessViewMarkers({
+        var markers: PruneCluster.Cluster[] = this.Cluster.ProcessViewMarkers({
             minLat: southWest.lat,
             minLng: southWest.lng,
             maxLat: northEast.lat,
@@ -259,6 +259,25 @@ var PruneClusterForLeaflet = ((<any>L).Layer ? (<any>L).Layer : L.Class).extend(
         // => merge collapsing cluster using a sweep and prune algorithm
         var workingList: PruneCluster.Cluster[] = [];
 
+        var creationMarker: any = [];
+        var creationMarkerArr: any = [];
+
+        creationMarkerArr = this._creationMarkerArr;
+
+        for (i =0; i < markers.length; i++) {
+            creationMarker = this.BuildLeafletMarker(markers[i], markers[i].position);
+            creationMarker.addTo(map);
+            creationMarker.setOpacity(1);
+            creationMarkerArr.push(creationMarker);
+        }
+
+        this._clustersOnMap = creationMarkerArr;
+
+        for (i =0; i < markersOnMap.length; i++) {
+            markersOnMap[i].setOpacity(0);
+        }
+
+        this._markersOnMap = markersOnMap;
 
     },
 
